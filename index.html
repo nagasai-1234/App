@@ -2,683 +2,1626 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Atlan API Observability Dashboard</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atlan Cloud Cost Monitoring Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
     <style>
+        :root {
+            --primary-color: #3949ab;
+            --secondary-color: #5c6bc0;
+            --accent-color: #ff9800;
+            --warning-color: #f44336;
+            --success-color: #4caf50;
+            --background-color: #f5f7fa;
+            --card-color: #ffffff;
+            --text-primary: #212121;
+            --text-secondary: #757575;
+            --border-color: #e0e0e0;
+            --chart-colors: #3949ab, #5c6bc0, #7986cb, #9fa8da, #c5cae9, #e8eaf6;
+        }
+
         * {
+            margin: 0;
+            padding: 0;
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8f9fa;
-            margin: 0;
-            padding: 0;
-            color: #333;
         }
-        .header {
-            background-color: #2c3e50;
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .navbar {
+            background-color: var(--primary-color);
             color: white;
-            padding: 15px 20px;
+            padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
         }
-        .header h1 {
-            font-size: 1.5rem;
-            font-weight: 500;
-        }
-        .real-time-indicator {
+
+        .navbar-left {
             display: flex;
             align-items: center;
+        }
+
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-right: 2rem;
+        }
+
+        .navbar-nav {
+            display: flex;
+            list-style: none;
+        }
+
+        .nav-item {
+            margin-right: 1rem;
+        }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .user-dropdown {
+            position: relative;
+            margin-left: 1rem;
+        }
+
+        .user-dropdown-toggle {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.5rem;
+        }
+
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            min-width: 180px;
+            display: none;
+            z-index: 1000;
+        }
+
+        .user-dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            display: block;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-item:hover {
+            background-color: var(--background-color);
+        }
+
+        .container {
+            max-width: 100%;
+            padding: 5rem 2rem 2rem;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .dashboard-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+        }
+
+        .dashboard-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-secondary {
+            background-color: white;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--background-color);
+        }
+
+        .filter-container {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-label {
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .select-container {
+            position: relative;
+        }
+
+        select {
+            padding: 0.6rem 2.5rem 0.6rem 1rem;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: white;
+            appearance: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+            min-width: 150px;
+        }
+
+        .select-arrow {
+            position: absolute;
+            top: 50%;
+            right: 1rem;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        .date-range {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        input[type="date"] {
+            padding: 0.6rem 1rem;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: white;
             font-size: 0.9rem;
         }
-        .status-dot {
-            height: 10px;
-            width: 10px;
-            background-color: #2ecc71;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        .dashboard-controls {
+
+        .search-container {
             display: flex;
-            justify-content: space-between;
-            padding: 10px 20px;
-            background-color: #f1f1f1;
-            border-bottom: 1px solid #ddd;
+            margin-left: auto;
         }
-        .time-range select {
-            padding: 5px 10px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
+
+        .search-input {
+            padding: 0.6rem 1rem;
+            border-radius: 4px 0 0 4px;
+            border: 1px solid var(--border-color);
+            border-right: none;
+            width: 250px;
+            font-size: 0.9rem;
         }
-        .tabs {
-            display: flex;
-        }
-        .tab {
-            padding: 8px 15px;
+
+        .search-btn {
+            padding: 0.6rem 1rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 0 4px 4px 0;
             cursor: pointer;
-            border-bottom: 2px solid transparent;
         }
-        .tab.active {
-            border-bottom: 2px solid #3498db;
-            font-weight: bold;
-        }
-        .dashboard {
+
+        .dashboard-grid {
             display: grid;
             grid-template-columns: repeat(12, 1fr);
-            gap: 20px;
-            padding: 20px;
+            gap: 1.5rem;
         }
+
         .card {
-            background-color: white;
+            background-color: var(--card-color);
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 1.5rem;
+            height: 100%;
         }
+
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 1.5rem;
         }
-        .card-header h2 {
+
+        .card-title {
             font-size: 1.1rem;
-            font-weight: 500;
-        }
-        .card-toolbar {
-            display: flex;
-            gap: 10px;
-        }
-        .card-toolbar button {
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: #666;
-        }
-        .chart-container {
-            position: relative;
-            height: 200px;
-        }
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-        }
-        .kpi-card {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            text-align: center;
-        }
-        .kpi-card h3 {
-            font-size: 0.8rem;
-            color: #666;
-            margin-bottom: 5px;
-        }
-        .kpi-card p {
-            font-size: 1.4rem;
             font-weight: 600;
         }
-        .kpi-trend {
-            font-size: 0.8rem;
-            margin-top: 5px;
+
+        .card-actions {
+            display: flex;
+            gap: 0.5rem;
         }
-        .up {
-            color: #2ecc71;
+
+        .card-action {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.2rem;
+            border-radius: 4px;
+            transition: background-color 0.3s;
         }
-        .down {
-            color: #e74c3c;
+
+        .card-action:hover {
+            color: var(--primary-color);
+            background-color: rgba(0, 0, 0, 0.05);
         }
-        .error-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            font-size: 0.9rem;
+
+        .cost-summary {
+            grid-column: span 3;
         }
-        .error-table th, .error-table td {
-            text-align: left;
-            padding: 8px;
-            border-bottom: 1px solid #f1f1f1;
+
+        .cost-trend {
+            grid-column: span 9;
         }
-        .error-table th {
-            font-weight: 500;
-            color: #666;
+
+        .service-breakdown {
+            grid-column: span 6;
         }
-        .endpoint {
+
+        .region-breakdown {
+            grid-column: span 6;
+        }
+
+        .resource-utilization {
             grid-column: span 8;
         }
-        .kpis {
+
+        .anomalies {
             grid-column: span 4;
         }
-        .errors, .resources {
+
+        .cost-optimization {
             grid-column: span 6;
         }
-        .half {
+
+        .billing-alerts {
             grid-column: span 6;
         }
-        .full {
-            grid-column: span 12;
+
+        .cost-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
         }
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 0.7rem;
-            font-weight: 500;
-        }
-        .badge-error {
-            background-color: #ffebee;
-            color: #e53935;
-        }
-        .badge-warning {
-            background-color: #fff8e1;
-            color: #ffb300;
-        }
-        .badge-info {
-            background-color: #e3f2fd;
-            color: #1e88e5;
-        }
-        .service-map {
-            grid-column: span 12;
-            height: 240px;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-        }
-        .service {
+
+        .metric-card {
+            padding: 1rem;
+            background-color: rgba(0, 0, 0, 0.02);
+            border-radius: 6px;
             text-align: center;
-            padding: 10px;
-            width: 100px;
+        }
+
+        .metric-title {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-change {
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+        }
+
+        .increase {
+            color: var(--warning-color);
+        }
+
+        .decrease {
+            color: var(--success-color);
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 270px;
+        }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        tbody tr:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+
+        .progress-bar {
+            height: 8px;
+            background-color: var(--border-color);
             border-radius: 4px;
-            background-color: #f8f9fa;
+            overflow: hidden;
+        }
+
+        .progress {
+            height: 100%;
+            border-radius: 4px;
+        }
+
+        .anomaly-item {
+            display: flex;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border-color);
+            gap: 1rem;
+        }
+
+        .anomaly-item:last-child {
+            border-bottom: none;
+        }
+
+        .anomaly-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: rgba(244, 67, 54, 0.1);
+            color: var(--warning-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .anomaly-content {
+            flex-grow: 1;
+        }
+
+        .anomaly-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .anomaly-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .anomaly-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .recommendation-item {
+            display: flex;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border-color);
+            gap: 1rem;
+        }
+
+        .recommendation-item:last-child {
+            border-bottom: none;
+        }
+
+        .recommendation-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: rgba(76, 175, 80, 0.1);
+            color: var(--success-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .recommendation-content {
+            flex-grow: 1;
+        }
+
+        .recommendation-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .recommendation-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .recommendation-savings {
+            color: var(--success-color);
+            font-weight: 600;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .btn-sm {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.85rem;
+        }
+
+        .alert-item {
+            display: flex;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border-color);
+            gap: 1rem;
+        }
+
+        .alert-item:last-child {
+            border-bottom: none;
+        }
+
+        .alert-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: rgba(255, 152, 0, 0.1);
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .alert-content {
+            flex-grow: 1;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .alert-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .alert-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-warning {
+            background-color: rgba(255, 152, 0, 0.1);
+            color: var(--accent-color);
+        }
+
+        .badge-danger {
+            background-color: rgba(244, 67, 54, 0.1);
+            color: var(--warning-color);
+        }
+
+        .badge-success {
+            background-color: rgba(76, 175, 80, 0.1);
+            color: var(--success-color);
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            background-color: rgba(0, 0, 0, 0.05);
+            margin-right: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 600px;
             position: relative;
         }
-        .service::after {
-            content: "→";
+
+        .modal-close {
             position: absolute;
-            right: -20px;
-            top: 50%;
-            transform: translateY(-50%);
+            top: 1rem;
+            right: 1rem;
             font-size: 1.5rem;
-            color: #ddd;
+            font-weight: bold;
+            cursor: pointer;
         }
-        .service:last-child::after {
-            display: none;
+
+        .modal-header {
+            margin-bottom: 1.5rem;
         }
-        .service.slow {
-            border: 1px solid #ffb300;
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
         }
-        .service.error {
-            border: 1px solid #e53935;
+
+        .modal-body {
+            margin-bottom: 1.5rem;
         }
-        .user-path-analysis {
-            grid-column: span 12;
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
         }
-        .progress-container {
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-control {
             width: 100%;
-            background-color: #f1f1f1;
-            border-radius: 5px;
-            margin-top: 5px;
+            padding: 0.6rem 1rem;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 0.9rem;
         }
-        .progress-bar {
-            height: 10px;
-            border-radius: 5px;
-            background-color: #3498db;
+
+        .form-text {
+            display: block;
+            margin-top: 0.25rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
         }
-        .frontend-metrics, .backend-metrics {
-            grid-column: span 6;
+
+        .alert-config {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem;
+            background-color: rgba(0, 0, 0, 0.02);
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .alert-config-type {
+            font-weight: 500;
+        }
+
+        .alert-config-value {
+            font-weight: 600;
+        }
+
+        .resource-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .resource-item:last-child {
+            border-bottom: none;
+        }
+
+        .resource-name {
+            font-weight: 500;
+        }
+
+        .resource-usage {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .usage-bar {
+            width: 100px;
+            height: 6px;
+            background-color: var(--border-color);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .usage-fill {
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        .high {
+            background-color: var(--warning-color);
+        }
+
+        .medium {
+            background-color: var(--accent-color);
+        }
+
+        .low {
+            background-color: var(--success-color);
+        }
+
+        .usage-percent {
+            font-size: 0.85rem;
+            width: 40px;
+            text-align: right;
+        }
+
+        .cost-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        .cost-item {
+            text-align: center;
+        }
+
+        .cost-item-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .cost-item-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* Responsive Styles */
+        @media (max-width: 1400px) {
+            .cost-summary {
+                grid-column: span 4;
+            }
+            
+            .cost-trend {
+                grid-column: span 8;
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard-grid {
+                grid-template-columns: repeat(8, 1fr);
+            }
+            
+            .cost-summary {
+                grid-column: span 8;
+            }
+            
+            .cost-trend {
+                grid-column: span 8;
+            }
+            
+            .service-breakdown {
+                grid-column: span 4;
+            }
+            
+            .region-breakdown {
+                grid-column: span 4;
+            }
+            
+            .resource-utilization {
+                grid-column: span 8;
+            }
+            
+            .anomalies {
+                grid-column: span 8;
+            }
+            
+            .cost-optimization {
+                grid-column: span 8;
+            }
+            
+            .billing-alerts {
+                grid-column: span 8;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .cost-summary,
+            .cost-trend,
+            .service-breakdown,
+            .region-breakdown,
+            .resource-utilization,
+            .anomalies,
+            .cost-optimization,
+            .billing-alerts {
+                grid-column: span 1;
+            }
+            
+            .filter-container {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .search-container {
+                margin-left: 0;
+                width: 100%;
+            }
+            
+            .search-input {
+                width: 100%;
+            }
+            
+            .navbar {
+                padding: 1rem;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .navbar-nav {
+                margin-top: 1rem;
+                flex-direction: column;
+            }
+            
+            .nav-item {
+                margin-right: 0;
+                margin-bottom: 0.5rem;
+            }
+            
+            .navbar-right {
+                margin-top: 1rem;
+            }
+        }
+
+        /* Animation */
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .pulse {
+            animation: pulse 1.5s infinite;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Atlan API Observability Dashboard</h1>
-        <div class="real-time-indicator">
-            <span class="status-dot"></span>
-            Live Data - Updated <span id="last-update">just now</span>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-left">
+            <div class="navbar-brand">Atlan Cloud Cost Monitor</div>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a href="#" class="nav-link">Dashboard</a></li>
+                <li class="nav-item"><a href="#" class="nav-link">Reports</a></li>
+                <li class="nav-item"><a href="#" class="nav-link">Recommendations</a></li>
+                <li class="nav-item"><a href="#" class="nav-link">Settings</a></li>
+            </ul>
+        </div>
+        <div class="navbar-right">
+            <button class="btn btn-secondary" id="alerts-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zm.995-14.901a1 1 0 1 0-1.99 0A5.002 5.002 0 0 0 3 6c0 1.098-.5 6-2 7h14c-1.5-1-2-5.902-2-7 0-2.42-1.72-4.44-4.005-4.901z"/>
+                </svg>
+                <span>2</span>
+            </button>
+            <div class="user-dropdown">
+                <div class="user-dropdown-toggle" id="user-dropdown-toggle">
+                    <div class="user-avatar">A</div>
+                    <span>Admin</span>
+                </div>
+                <div class="user-dropdown-menu" id="user-dropdown-menu">
+                    <a href="#" class="dropdown-item">Profile</a>
+                    <a href="#" class="dropdown-item">Settings</a>
+                    <a href="#" class="dropdown-item">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Dashboard Header -->
+        <div class="dashboard-header">
+            <h1 class="dashboard-title">Cloud Cost Overview</h1>
+            <div class="dashboard-actions">
+                <button class="btn btn-secondary" id="export-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                    </svg>
+                    Export
+                </button>
+                <button class="btn btn-primary" id="create-alert-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                    </svg>
+                    Create Alert
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-container">
+            <div class="filter-group">
+                <span class="filter-label">Cloud Provider:</span>
+                <div class="select-container">
+                    <select id="provider-filter">
+                        <option value="all">All Providers</option>
+                        <option value="aws">AWS</option>
+                        <option value="azure">Azure</option>
+                        <option value="gcp">GCP</option>
+                    </select>
+                    <span class="select-arrow">▼</span>
+                </div>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">Environment:</span>
+                <div class="select-container">
+                    <select id="env-filter">
+                        <option value="all">All Environments</option>
+                        <option value="prod">Production</option>
+                        <option value="staging">Staging</option>
+                        <option value="dev">Development</option>
+                    </select>
+                    <span class="select-arrow">▼</span>
+                </div>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">Date Range:</span>
+                <div class="date-range">
+                    <input type="date" id="start-date" value="2025-03-01">
+                    <span>to</span>
+                    <input type="date" id="end-date" value="2025-03-29">
+                </div>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search resources...">
+                <button class="search-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Cost Summary Card -->
+            <div class="card cost-summary">
+                <div class="card-header">
+                    <h2 class="card-title">Cost Summary</h2>
+                    <div class="card-actions">
+                        <button class="card-action">↻</button>
+                        <button class="card-action">⋮</button>
+                    </div>
+                </div>
+                <div class="cost-summary-grid">
+                    <div class="metric-card">
+                        <div class="metric-title">Total Cost</div>
+                        <div class="metric-value">$12,458</div>
+                        <div class="metric-change increase">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z"/>
+                            </svg>
+                            12% from last month
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">Forecast</div>
+                        <div class="metric-value">$14,210</div>
+                        <div class="metric-change increase">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z"/>
+                            </svg>
+                            8% from budget
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">AWS Cost</div>
+                        <div class="metric-value">$8,742</div>
+                        <div class="metric-change increase">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z"/>
+                            </svg>
+                            15% from last month
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">Azure Cost</div>
+                        <div class="metric-value">$3,716</div>
+                        <div class="metric-change decrease">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/>
+                            </svg>
+                            5% from last month
+                        </div>
+                    </div>
+                </div>
+                <div class="cost-details">
+                    <div class="cost-item">
+                        <div class="cost-item-value">$9,210</div>
+                        <div class="cost-item-label">Production</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-item-value">$2,458</div>
+                        <div class="cost-item-label">Staging</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-item-value">$790</div>
+                        <div class="cost-item-label">Development</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cost Trend Card -->
+            <div class="card cost-trend">
+                <div class="card-header">
+                    <h2 class="card-title">Cost Trend (Last 30 Days)</h2>
+                    <div class="card-actions">
+                        <button class="card-action">↻</button>
+                        <button class="card-action">⋮</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="costTrendChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Service Breakdown Card -->
+            <div class="card service-breakdown">
+                <div class="card-header">
+                    <h2 class="card-title">Service Breakdown</h2>
+                    <div class="card-actions">
+                        <button class="card-action">↻</button>
+                        <button class="card-action">⋮</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="serviceBreakdownChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Region Breakdown Card -->
+            <div class="card region-breakdown">
+                <div class="card-header">
+                    <h2 class="card-title">Region Breakdown</h2>
+                    <div class="card-actions">
+                        <button class="card-action">↻</button>
+                        <button class="card-action">⋮</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="regionBreakdownChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Resource Utilization Card -->
+            <div class="card resource-utilization">
+                <div class="card-header">
+                    <h2 class="card-title">Resource Utilization</h2>
+                    <div class="card-actions">
+                        <button class="card-action">↻</button>
+                        <button class="card-action">⋮</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Resource</th>
+                                <th>Type</th>
+                                <th>Environment</th>
+                                <th>Utilization</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>EC2 - Web Servers</td>
+                                <td>Compute</td>
+                                <td>Production</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress high" style="width: 85%"></div>
+                                    </div>
+                                </td>
+                                <td>$2,450</td>
+                            </tr>
+                            <tr>
+                                <td>RDS - Primary DB</td>
+                                <td>Database</td>
+                                <td>Production</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress medium" style="width: 65%"></div>
+                                    </div>
+                                </td>
+                                <td>$1,890</td>
+                            </tr>
+                            <tr>
+                                <td>S3 - Data Lake</td>
+                                <td>Storage</td>
+                                <td>Production</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress low" style="width: 30%"></div>
+                                    </div>
+                                </td>
+                                <td>$1,250</td>
+                            </tr>
+                            <tr>
+                                <td>Lambda - Processing</td>
+                                <td>Serverless</td>
+                                <td>Production</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress medium" style="width: 55%"></div>
+                                    </div>
+                                </td>
+                                <td>$890</td>
+                            </tr>
+                            <tr>
+                                <td>EC2 - Test Servers</td>
+                                <td>Compute</td>
+                                <td>Staging</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress low" style="width: 25%"></div>
+                                    </div>
+                                </td>
+                                <td>$420</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Anomalies Card -->
+            <div class="card anomalies">
+                <div class="card-header">
+                    <h2 class="card-title">Anomalies</h2>
+                    <div class="card-actions">
+                        <button class="card-action">↻</button>
+                        <button class="card-action">⋮</button>
+                    </div>
+                </div>
+                <div class="anomaly-item">
+                    <div class="anomaly-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                        </svg>
+                    </div>
+                    <div class="anomaly-content">
+                        <div class="anomaly-title">Unusual EC2 Cost Spike</div>
+                        <div class="anomaly-description">EC2 instances in us-east-1 showing 3x normal usage</div>
+                        <div class="anomaly-meta">
+                            <span>Today, 10:45 AM</span>
+                            <span class="badge badge-danger">Critical</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="anomaly-item">
+                    <div class="anomaly-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                        </svg>
+                    </div>
+                    <div class="anomaly-content">
+                        <div class="anomaly-title">Unused EBS Volumes</div>
+                        <div class="anomaly-description">15 EBS volumes with 0% utilization for 30+ days</div>
+                        <div class="anomaly-meta">
+                            <span>Yesterday, 2:30 PM</span>
+                            <span class="badge badge-warning">Warning</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="anomaly-item">
+                    <div class="anomaly-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                        </svg>
+                    </div>
+                    <div class="anomaly-content">
+                        <div class="anomaly-title">S3 Bucket Overprovisioned</div>
+                        <div class="anomaly-description">Storage capacity exceeds actual usage by 5x</div>
+                        <div class="anomaly-meta">
+                            <span>Mar 27, 9:15 AM</span>
+                            <span class="badge badge-warning">Warning</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cost Optimization Card -->
+            <div class="card cost-optimization">
+                <div class="card-header">
+                    <h2 class="card-title">Optimization Recommendations</h2>
+                    <div class="card-actions">
+                        <button class="card-action">↻</button>
+                        <button class="card-action">⋮</button>
+                    </div>
+                </div>
+                <div class="recommendation-item">
+                    <div class="recommendation-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2zm1 12h2V2h-2v12zm-3 0V7H7v7h2zm-5 0v-3H2v3h2z"/>
+                        </svg>
+                    </div>
+                    <div class="recommendation-content">
+                        <div class="recommendation-title">Resize Underutilized EC2 Instances</div>
+                        <div class="recommendation-description">12 t3.xlarge instances are running at less than 30% CPU utilization</div>
+                        <div class="recommendation-savings">Potential savings: $1,240/month</div>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-secondary">View Details</button>
+                            <button class="btn btn-sm btn-primary">Apply</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="recommendation-item">
+                    <div class="recommendation-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2zm1 12h2V2h-2v12zm-3 0V7H7v7h2zm-5 0v-3H2v3h2z"/>
+                        </svg>
+                    </div>
+                    <div class="recommendation-content">
+                        <div class="recommendation-title">Purchase Reserved Instances</div>
+                        <div class="recommendation-description">8 m5.large instances have consistent usage and qualify for RIs</div>
+                        <div class="recommendation-savings">Potential savings: $890/month</div>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-secondary">View Details</button>
+                            <button class="btn btn-sm btn-primary">Apply</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="recommendation-item">
+                    <div class="recommendation-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7h1V2zm1 12h2V2h-2v12zm-3 0V7H7v7h2zm-5 0v-3H2v3h2z"/>
+                        </svg>
+                    </div>
+                    <div class="recommendation-content">
+                        <div class="recommendation-title">Delete Unused EBS Volumes</div>
+                        <div class="recommendation-description">15 EBS volumes with 0% utilization for 30+ days</div>
+                        <div class="recommendation-savings">Potential savings: $320/month</div>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-secondary">View Details</button>
+                            <button class="btn btn-sm btn-primary">Apply</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Billing Alerts Card -->
+            <div class="card billing-alerts">
+                <div class="card-header">
+                    <h2 class="card-title">Billing Alerts</h2>
+                    <div class="card-actions">
+                        <button class="card-action">↻</button>
+                        <button class="card-action">⋮</button>
+                    </div>
+                </div>
+                <div class="alert-item">
+                    <div class="alert-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+                        </svg>
+                    </div>
+                    <div class="alert-content">
+                        <div class="alert-title">Approaching Budget Limit</div>
+                        <div class="alert-description">Current spend is at 85% of monthly budget</div>
+                        <div class="alert-meta">
+                            <span>Mar 28, 4:30 PM</span>
+                            <span class="badge badge-warning">Warning</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert-item">
+                    <div class="alert-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+                        </svg>
+                    </div>
+                    <div class="alert-content">
+                        <div class="alert-title">Unusual Data Transfer Costs</div>
+                        <div class="alert-description">Data transfer costs increased by 120% this week</div>
+                        <div class="alert-meta">
+                            <span>Mar 26, 11:15 AM</span>
+                            <span class="badge badge-warning">Warning</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert-item">
+                    <div class="alert-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+                        </svg>
+                    </div>
+                    <div class="alert-content">
+                        <div class="alert-title">AWS Free Tier Limit Exceeded</div>
+                        <div class="alert-description">Free tier usage limit exceeded for EC2 and S3</div>
+                        <div class="alert-meta">
+                            <span>Mar 25, 9:45 AM</span>
+                            <span class="badge badge-danger">Critical</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    
-    <div class="dashboard-controls">
-        <div class="time-range">
-            <select id="timeRange">
-                <option value="15m">Last 15 minutes</option>
-                <option value="1h" selected>Last 1 hour</option>
-                <option value="6h">Last 6 hours</option>
-                <option value="24h">Last 24 hours</option>
-                <option value="7d">Last 7 days</option>
-            </select>
-        </div>
-        <div class="tabs">
-            <div class="tab active">Overview</div>
-            <div class="tab">Frontend</div>
-            <div class="tab">Backend</div>
-            <div class="tab">Services</div>
-            <div class="tab">Logs</div>
-        </div>
-    </div>
-    
-    <div class="dashboard">
-        <!-- API Endpoint Performance -->
-        <div class="card endpoint">
-            <div class="card-header">
-                <h2>API Response Time by Endpoint</h2>
-                <div class="card-toolbar">
-                    <button>⚙️</button>
-                    <button>↓</button>
+
+    <!-- Create Alert Modal -->
+    <div class="modal" id="alert-modal">
+        <div class="modal-content">
+            <span class="modal-close" id="modal-close">&times;</span>
+            <div class="modal-header">
+                <h3 class="modal-title">Create New Billing Alert</h3>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Alert Name</label>
+                    <input type="text" class="form-control" placeholder="e.g. Budget Threshold Alert">
+                    <small class="form-text">Give your alert a descriptive name</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Alert Type</label>
+                    <select class="form-control">
+                        <option>Budget Threshold</option>
+                        <option>Cost Anomaly</option>
+                        <option>Resource Utilization</option>
+                        <option>Service Cost Spike</option>
+                    </select>
+                </div>
+                <div class="alert-config">
+                    <span class="alert-config-type">Condition:</span>
+                    <span class="alert-config-value">Cost exceeds $10,000 per month</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Threshold Value</label>
+                    <input type="number" class="form-control" placeholder="e.g. 10000">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notification Channel</label>
+                    <select class="form-control">
+                        <option>Email</option>
+                        <option>Slack</option>
+                        <option>Webhook</option>
+                        <option>SMS</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Recipients</label>
+                    <input type="text" class="form-control" placeholder="Enter email addresses separated by commas">
                 </div>
             </div>
-            <div class="chart-container">
-                <canvas id="endpointChart"></canvas>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-alert-btn">Cancel</button>
+                <button class="btn btn-primary">Create Alert</button>
             </div>
-        </div>
-        
-        <!-- KPIs -->
-        <div class="card kpis">
-            <div class="card-header">
-                <h2>Key Performance Indicators</h2>
-            </div>
-            <div class="kpi-grid">
-                <div class="kpi-card">
-                    <h3>Avg Response Time</h3>
-                    <p>238 ms</p>
-                    <div class="kpi-trend down">↓ 12% from avg</div>
-                </div>
-                <div class="kpi-card">
-                    <h3>Error Rate</h3>
-                    <p>1.4%</p>
-                    <div class="kpi-trend up">↑ 0.3% from avg</div>
-                </div>
-                <div class="kpi-card">
-                    <h3>Requests/Min</h3>
-                    <p>1,752</p>
-                    <div class="kpi-trend up">↑ 15% from avg</div>
-                </div>
-                <div class="kpi-card">
-                    <h3>Concurrent Users</h3>
-                    <p>427</p>
-                    <div class="kpi-trend up">↑ 12% from avg</div>
-                </div>
-                <div class="kpi-card">
-                    <h3>Database Load</h3>
-                    <p>68%</p>
-                    <div class="kpi-trend up">↑ 8% from avg</div>
-                </div>
-                <div class="kpi-card">
-                    <h3>Cache Hit Rate</h3>
-                    <p>91.2%</p>
-                    <div class="kpi-trend down">↓ 2% from avg</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Error Analysis -->
-        <div class="card errors">
-            <div class="card-header">
-                <h2>Recent Errors</h2>
-            </div>
-            <table class="error-table">
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>Endpoint</th>
-                        <th>Error</th>
-                        <th>Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>2 min ago</td>
-                        <td>/api/dashboard/metrics</td>
-                        <td><span class="badge badge-error">500</span> Database timeout</td>
-                        <td>14</td>
-                    </tr>
-                    <tr>
-                        <td>5 min ago</td>
-                        <td>/api/users/profile</td>
-                        <td><span class="badge badge-warning">404</span> User not found</td>
-                        <td>6</td>
-                    </tr>
-                    <tr>
-                        <td>12 min ago</td>
-                        <td>/api/reports/generate</td>
-                        <td><span class="badge badge-error">503</span> Service unavailable</td>
-                        <td>23</td>
-                    </tr>
-                    <tr>
-                        <td>18 min ago</td>
-                        <td>/api/auth/validate</td>
-                        <td><span class="badge badge-info">401</span> Token expired</td>
-                        <td>31</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Resource Utilization -->
-        <div class="card resources">
-            <div class="card-header">
-                <h2>Resource Utilization</h2>
-            </div>
-            <div class="chart-container">
-                <canvas id="resourceChart"></canvas>
-            </div>
-        </div>
-        
-        <!-- Frontend Metrics -->
-        <div class="card frontend-metrics">
-            <div class="card-header">
-                <h2>Frontend Performance</h2>
-            </div>
-            <div class="kpi-grid">
-                <div class="kpi-card">
-                    <h3>Page Load Time</h3>
-                    <p>1.8s</p>
-                    <div class="kpi-trend down">↓ 0.3s from avg</div>
-                </div>
-                <div class="kpi-card">
-                    <h3>First Paint</h3>
-                    <p>0.7s</p>
-                    <div class="kpi-trend down">↓ 0.1s from avg</div>
-                </div>
-                <div class="kpi-card">
-                    <h3>JS Errors</h3>
-                    <p>12</p>
-                    <div class="kpi-trend up">↑ 5 from avg</div>
-                </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="frontendChart"></canvas>
-            </div>
-        </div>
-        
-        <!-- Backend Metrics -->
-        <div class="card backend-metrics">
-            <div class="card-header">
-                <h2>Backend Performance</h2>
-            </div>
-            <div class="kpi-grid">
-                <div class="kpi-card">
-                    <h3>Query Time</h3>
-                    <p>89ms</p>
-                    <div class="kpi-trend up">↑ 12ms from avg</div>
-                </div>
-                <div class="kpi-card">
-                    <h3>API Errors</h3>
-                    <p>74</p>
-                    <div class="kpi-trend up">↑ 23 from avg</div>
-                </div>
-                <div class="kpi-card">
-                    <h3>CPU Load</h3>
-                    <p>72%</p>
-                    <div class="kpi-trend up">↑ 15% from avg</div>
-                </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="backendChart"></canvas>
-            </div>
-        </div>
-        
-        <!-- Service Dependency Map -->
-        <div class="card service-map">
-            <div class="service">
-                <div>Client App</div>
-                <div>1.2s</div>
-            </div>
-            <div class="service">
-                <div>API Gateway</div>
-                <div>24ms</div>
-            </div>
-            <div class="service slow">
-                <div>Auth Service</div>
-                <div>320ms</div>
-            </div>
-            <div class="service">
-                <div>User Service</div>
-                <div>68ms</div>
-            </div>
-            <div class="service error">
-                <div>Report Service</div>
-                <div>503ms</div>
-            </div>
-            <div class="service">
-                <div>Database</div>
-                <div>89ms</div>
-            </div>
-        </div>
-        
-        <!-- User Path Analysis -->
-        <div class="card user-path-analysis">
-            <div class="card-header">
-                <h2>User Journey Completion</h2>
-            </div>
-            <table class="error-table">
-                <thead>
-                    <tr>
-                        <th>Journey</th>
-                        <th>Completion Rate</th>
-                        <th>Avg Duration</th>
-                        <th>Drop-off Point</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>User Registration</td>
-                        <td>
-                            <div class="progress-container">
-                                <div class="progress-bar" style="width: 82%"></div>
-                            </div>
-                            82%
-                        </td>
-                        <td>1m 24s</td>
-                        <td>Email Verification</td>
-                    </tr>
-                    <tr>
-                        <td>Report Generation</td>
-                        <td>
-                            <div class="progress-container">
-                                <div class="progress-bar" style="width: 67%"></div>
-                            </div>
-                            67%
-                        </td>
-                        <td>2m 38s</td>
-                        <td>Report Configuration</td>
-                    </tr>
-                    <tr>
-                        <td>Dashboard Creation</td>
-                        <td>
-                            <div class="progress-container">
-                                <div class="progress-bar" style="width: 91%"></div>
-                            </div>
-                            91%
-                        </td>
-                        <td>3m 12s</td>
-                        <td>Widget Selection</td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
     </div>
 
     <script>
-        // Update the "last updated" text periodically
-        function updateLastUpdated() {
-            const lastUpdate = document.getElementById('last-update');
-            lastUpdate.textContent = 'just now';
-            
-            setTimeout(() => {
-                lastUpdate.textContent = '10 seconds ago';
-            }, 10000);
-            
-            setTimeout(() => {
-                lastUpdate.textContent = '20 seconds ago';
-            }, 20000);
-            
-            setTimeout(() => {
-                lastUpdate.textContent = '30 seconds ago';
-                updateLastUpdated();
-            }, 30000);
-        }
-        
-        // Simulate real-time updates for the charts
-        function updateCharts() {
-            // Add random variation to the data
-            endpointChart.data.datasets.forEach((dataset) => {
-                dataset.data = dataset.data.map(value => {
-                    const change = (Math.random() - 0.5) * 20;
-                    return Math.max(50, Math.min(500, value + change));
-                });
-            });
-            endpointChart.update();
-            
-            resourceChart.data.datasets[0].data = resourceChart.data.datasets[0].data.map(value => {
-                const change = (Math.random() - 0.5) * 5;
-                return Math.max(20, Math.min(95, value + change));
-            });
-            resourceChart.update();
-            
-            frontendChart.data.datasets[0].data = frontendChart.data.datasets[0].data.map(value => {
-                const change = (Math.random() - 0.5) * 0.3;
-                return Math.max(0.5, Math.min(3, value + change));
-            });
-            frontendChart.update();
-            
-            backendChart.data.datasets[0].data = backendChart.data.datasets[0].data.map(value => {
-                const change = (Math.random() - 0.5) * 10;
-                return Math.max(50, Math.min(150, value + change));
-            });
-            backendChart.update();
-            
-            // Schedule the next update
-            setTimeout(updateCharts, 5000);
-        }
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            // Generate timestamps for x-axis
-            const timestamps = [];
-            const now = new Date();
-            for (let i = 12; i >= 0; i--) {
-                const time = new Date(now.getTime() - i * 5 * 60000);
-                timestamps.push(time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+        // Toggle user dropdown
+        document.getElementById('user-dropdown-toggle').addEventListener('click', function() {
+            document.getElementById('user-dropdown-menu').classList.toggle('show');
+        });
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', function(e) {
+            if (!e.target.matches('#user-dropdown-toggle') && !e.target.closest('#user-dropdown-toggle')) {
+                const dropdown = document.getElementById('user-dropdown-menu');
+                if (dropdown.classList.contains('show')) {
+                    dropdown.classList.remove('show');
+                }
             }
-            
-            // Endpoint Performance Chart
-            const endpointCtx = document.getElementById('endpointChart').getContext('2d');
-            window.endpointChart = new Chart(endpointCtx, {
+        });
+
+        // Modal handling
+        const modal = document.getElementById('alert-modal');
+        const createAlertBtn = document.getElementById('create-alert-btn');
+        const modalClose = document.getElementById('modal-close');
+        const cancelAlertBtn = document.getElementById('cancel-alert-btn');
+
+        createAlertBtn.addEventListener('click', function() {
+            modal.style.display = 'block';
+        });
+
+        modalClose.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+
+        cancelAlertBtn.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+
+        window.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+
+        // Initialize charts
+        document.addEventListener('DOMContentLoaded', function() {
+            // Cost Trend Chart
+            const costTrendCtx = document.getElementById('costTrendChart').getContext('2d');
+            const costTrendChart = new Chart(costTrendCtx, {
                 type: 'line',
                 data: {
-                    labels: timestamps,
+                    labels: Array.from({length: 30}, (_, i) => moment().subtract(29 - i, 'days').format('MMM D')),
                     datasets: [
                         {
-                            label: '/api/users',
-                            data: [120, 132, 101, 134, 90, 180, 220, 210, 190, 180, 200, 190, 195],
-                            borderColor: '#3498db',
-                            tension: 0.1,
-                            fill: false
+                            label: 'AWS',
+                            data: [1200, 1250, 1300, 1280, 1320, 1350, 1400, 1380, 1420, 1450, 1500, 1550, 1600, 1580, 1620, 1650, 1700, 1750, 1800, 1850, 1900, 1950, 2000, 2050, 2100, 2150, 2200, 2250, 2300, 2350],
+                            borderColor: '#3949ab',
+                            backgroundColor: 'rgba(57, 73, 171, 0.1)',
+                            tension: 0.4,
+                            fill: true
                         },
                         {
-                            label: '/api/reports',
-                            data: [320, 332, 301, 334, 390, 330, 320, 280, 300, 310, 350, 400, 420],
-                            borderColor: '#e74c3c',
-                            tension: 0.1,
-                            fill: false
+                            label: 'Azure',
+                            data: [800, 810, 820, 815, 825, 830, 840, 835, 845, 850, 860, 870, 880, 875, 885, 890, 900, 910, 920, 915, 925, 930, 940, 935, 945, 950, 960, 970, 980, 990],
+                            borderColor: '#ff9800',
+                            backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                            tension: 0.4,
+                            fill: true
                         },
                         {
-                            label: '/api/dashboard',
-                            data: [180, 190, 210, 170, 190, 180, 170, 210, 200, 220, 210, 200, 195],
-                            borderColor: '#2ecc71',
-                            tension: 0.1,
-                            fill: false
+                            label: 'GCP',
+                            data: [400, 410, 420, 415, 425, 430, 440, 435, 445, 450, 460, 470, 480, 475, 485, 490, 500, 510, 520, 515, 525, 530, 540, 535, 545, 550, 560, 570, 580, 590],
+                            borderColor: '#4caf50',
+                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                            tension: 0.4,
+                            fill: true
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    },
                     scales: {
                         y: {
-                            title: {
-                                display: true,
-                                text: 'Response Time (ms)'
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
                             }
                         }
                     }
                 }
             });
-            
-            // Resource Utilization Chart
-            const resourceCtx = document.getElementById('resourceChart').getContext('2d');
-            window.resourceChart = new Chart(resourceCtx, {
-                type: 'line',
+
+            // Service Breakdown Chart
+            const serviceBreakdownCtx = document.getElementById('serviceBreakdownChart').getContext('2d');
+            const serviceBreakdownChart = new Chart(serviceBreakdownCtx, {
+                type: 'doughnut',
                 data: {
-                    labels: timestamps,
+                    labels: ['EC2', 'RDS', 'S3', 'Lambda', 'EBS', 'CloudFront', 'Other'],
                     datasets: [{
-                        label: 'CPU Usage %',
-                        data: [65, 59, 80, 81, 56, 55, 60, 70, 65, 75, 70, 65, 72],
-                        borderColor: '#9b59b6',
-                        backgroundColor: 'rgba(155, 89, 182, 0.2)',
-                        fill: true
+                        data: [4200, 1890, 1250, 890, 750, 620, 1858],
+                        backgroundColor: [
+                            '#3949ab',
+                            '#5c6bc0',
+                            '#7986cb',
+                            '#9fa8da',
+                            '#c5cae9',
+                            '#e8eaf6',
+                            '#f5f7fa'
+                        ],
+                        borderWidth: 1
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: $${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
                 }
             });
-            
-            // Frontend Performance Chart
-            const frontendCtx = document.getElementById('frontendChart').getContext('2d');
-            window.frontendChart = new Chart(frontendCtx, {
-                type: 'line',
+
+            // Region Breakdown Chart
+            const regionBreakdownCtx = document.getElementById('regionBreakdownChart').getContext('2d');
+            const regionBreakdownChart = new Chart(regionBreakdownCtx, {
+                type: 'bar',
                 data: {
-                    labels: timestamps,
+                    labels: ['us-east-1', 'us-west-2', 'eu-west-1', 'ap-southeast-1', 'sa-east-1'],
                     datasets: [{
-                        label: 'Page Load Time (s)',
-                        data: [1.8, 2.0, 1.9, 1.7, 1.8, 2.1, 2.2, 2.0, 1.9, 1.8, 1.7, 1.8, 1.8],
-                        borderColor: '#f39c12',
-                        backgroundColor: 'rgba(243, 156, 18, 0.2)',
-                        fill: true
+                        label: 'Cost by Region',
+                        data: [5200, 3200, 1800, 1500, 758],
+                        backgroundColor: [
+                            'rgba(57, 73, 171, 0.7)',
+                            'rgba(92, 107, 192, 0.7)',
+                            'rgba(121, 134, 203, 0.7)',
+                            'rgba(159, 168, 218, 0.7)',
+                            'rgba(197, 202, 233, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(57, 73, 171, 1)',
+                            'rgba(92, 107, 192, 1)',
+                            'rgba(121, 134, 203, 1)',
+                            'rgba(159, 168, 218, 1)',
+                            'rgba(197, 202, 233, 1)'
+                        ],
+                        borderWidth: 1
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return '$' + context.raw.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
                 }
             });
-            
-            // Backend Performance Chart
-            const backendCtx = document.getElementById('backendChart').getContext('2d');
-            window.backendChart = new Chart(backendCtx, {
-                type: 'line',
-                data: {
-                    labels: timestamps,
-                    datasets: [{
-                        label: 'Query Response Time (ms)',
-                        data: [85, 90, 80, 88, 95, 92, 89, 84, 82, 88, 92, 95, 89],
-                        borderColor: '#16a085',
-                        backgroundColor: 'rgba(22, 160, 133, 0.2)',
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
-            });
-            
-            // Start the real-time updates
-            updateLastUpdated();
-            updateCharts();
         });
     </script>
 </body>
